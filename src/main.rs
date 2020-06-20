@@ -1,65 +1,43 @@
-use slack;
-use slack::{Event, RtmClient};
+extern crate gio;
+extern crate gtk;
+use slite::cfg;
 
-struct MyHandler;
+use gio::prelude::*;
+use gtk::prelude::*;
 
-#[allow(unused_variables)]
-impl slack::EventHandler for MyHandler {
-    fn on_event(&mut self, cli: &RtmClient, event: Event) {
-        println!("on_event(event: {:?})", event);
-    }
+use gtk::{ApplicationWindow, Builder, Button, MessageDialog};
 
-    fn on_close(&mut self, cli: &RtmClient) {
-        println!("on_close");
-    }
+use std::env::args;
 
-    fn on_connect(&mut self, cli: &RtmClient) {
-        println!("on_connect");
-        // find the general channel id from the `StartResponse`
-        let channels = cli.start_response().channels.as_ref();
-        println!("channels: {:?}", channels);
-        let general_channel_id = channels
-            .and_then(|channels| {
-                channels
-                    .iter()
-                    .find(|chan| match chan.name {
-                        None => false,
-                        Some(ref name) => name == "ai",
-                    })
-            })
-            .and_then(|chan| chan.id.as_ref())
-            .expect("ai channel not found");
-        let _ = cli.sender().send_message(&general_channel_id, "Hello world! (rtm)");
-        // Send a message over the real time api websocket
-    }
+fn build_ui(application: &gtk::Application) {
+    let glade_src = include_str!("builder_basics.glade");
+    let builder = Builder::new_from_string(glade_src);
+
+    let window: ApplicationWindow = builder.get_object("window1").expect("Couldn't get window1");
+    window.set_application(Some(application));
+    let bigbutton: Button = builder.get_object("button1").expect("Couldn't get button1");
+    let dialog: MessageDialog = builder
+        .get_object("messagedialog1")
+        .expect("Couldn't get messagedialog1");
+
+    bigbutton.connect_clicked(move |_| {
+        dialog.run();
+        dialog.hide();
+    });
+
+    window.show_all();
 }
 
 fn main() {
-    let args: Vec<String> = std::env::args().collect();
-    let api_key = match args.len() {
-        0 | 1 => panic!("No api-key in args! Usage: cargo run --example slack_example -- <api-key>"),
-        x => args[x - 1].clone(),
-    };
-    let mut handler = MyHandler;
-    let r = RtmClient::login_and_run(&api_key, &mut handler);
-    match r {
-        Ok(_) => {}
-        Err(err) => panic!("Error: {}", err),
-    }
+    let application = gtk::Application::new(
+        Some("com.github.gtk-rs.examples.builder_basics"),
+        Default::default(),
+    )
+    .expect("Initialization failed...");
+
+    application.connect_activate(|app| {
+        build_ui(app);
+    });
+
+    application.run(&args().collect::<Vec<_>>());
 }
-// use std::error::Error;
-//
-// fn main() -> Result<(), Box<dyn Error>> {
-//     use linefeed::{Interface, ReadResult};
-//
-//     let reader = Interface::new("my-application")?;
-//
-//     reader.set_prompt("my-app> ")?;
-//
-//     while let ReadResult::Input(input) = reader.read_line()? {
-//         println!("got input {:?}", input);
-//     }
-//
-//     println!("Goodbye.");
-//     Ok(())
-// }
